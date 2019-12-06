@@ -97,7 +97,7 @@ after_join <- function(x,
                        max_gap = NULL,
                        min_gap = NULL,
                        gap_col = FALSE,
-                       suffix = c(".x", ".y")) {
+                       suffix = c("_x", "_y")) {
 
   if (!is.null(attr(x, "after_join")) & inherits(x, "tbl_lazy")) {
     stop("You can not do multiple after joins in a row remotely. Please pull your data locally.")
@@ -125,11 +125,11 @@ after_join <- function(x,
 
   x_i <- x %>%
     dplyr::arrange(!!dplyr::sym(user_xy$x), !!dplyr::sym(time_xy$x)) %>%
-    dplyr::mutate(..idx = row_number())
+    dplyr::mutate(funneljoin_idx = row_number())
 
   y_i <- y %>%
     dplyr::arrange(!!dplyr::sym(user_xy$y), !!dplyr::sym(time_xy$y)) %>%
-    dplyr::mutate(..idy = row_number())
+    dplyr::mutate(funneljoin_idy = row_number())
 
   if (type_x %in% c("first", "last")) {
     x_i <- x_i %>%
@@ -147,13 +147,13 @@ after_join <- function(x,
 
   # Handle the case when columns with the same name are appended with .x & .y
   if (time_xy$x == time_xy$y || time_xy$x %in% colnames(y_i) || time_xy$y %in% colnames(x_i)) {
-    time_xy <- list(x = paste0(time_xy$x, ".x"),
-                    y = paste0(time_xy$y, ".y"))
+    time_xy <- list(x = paste0(time_xy$x, "_x"),
+                    y = paste0(time_xy$y, "_y"))
   }
 
   # Get all the matching rows
   pairs <- x_i %>%
-    dplyr::inner_join(y_i, by = user_xy) %>%
+    dplyr::inner_join(y_i, by = user_xy, suffix = suffix) %>%
     dplyr::filter(!!dplyr::sym(time_xy$x) <= !!dplyr::sym(time_xy$y))
 
   if (!is.null(max_gap) || !is.null(min_gap)) {
@@ -167,21 +167,21 @@ after_join <- function(x,
   if (type_x == "firstwithin") {
     pairs <- pairs %>%
       distinct_events(time_col = time_xy$x,
-                      user_col = "..idy",
+                      user_col = "funneljoin_idy",
                       type = "first")
     }
 
   if (type_y == "firstafter") {
     pairs <- pairs %>%
       distinct_events(time_col = time_xy$y,
-                      user_col = "..idx",
+                      user_col = "funneljoin_idx",
                       type = "first")
   }
 
   if (type_x == "lastbefore") {
     pairs <- pairs %>%
       distinct_events(time_col = time_xy$x,
-                      user_col = "..idy",
+                      user_col = "funneljoin_idy",
                       type = "last")
   }
 
@@ -192,18 +192,18 @@ after_join <- function(x,
                                                "{ time_xy$y }")::integer'))
 
       pairs <- pairs %>%
-        dplyr::mutate(.gap = time_difference) %>%
-        dplyr::select(..idx, ..idy, .gap)
+        dplyr::mutate(funneljoin_gap = time_difference) %>%
+        dplyr::select(funneljoin_idx, funneljoin_idy, funneljoin_gap)
     }
     else {
       pairs <- pairs %>%
         dplyr::mutate(.gap = as.numeric(difftime(!!dplyr::sym(time_xy$y),
                                                  !!dplyr::sym(time_xy$x), units = "secs"))) %>%
-        dplyr::select(..idx, ..idy, .gap)
+        dplyr::select(funneljoin_idx, funneljoin_idy, funneljoin_gap)
     }
   } else {
     pairs <- pairs %>%
-      dplyr::select(..idx, ..idy)
+      dplyr::select(funneljoin_idx, funneljoin_idy)
   }
 
   join_func <- switch(mode,
@@ -221,13 +221,13 @@ after_join <- function(x,
 
   if (mode %in% c("inner", "left", "right", "full")) {
     ret <- x_i %>%
-      join_func(pairs, by = "..idx") %>%
-      join_func(y_i, by = c(by_user, "..idy" = "..idy"), suffix = suffix) %>%
-      dplyr::select(-..idx, -..idy)
+      join_func(pairs, by = "funneljoin_idx") %>%
+      join_func(y_i, by = c(by_user, "funneljoin_idy" = "funneljoin_idy"), suffix = suffix) %>%
+      dplyr::select(-funneljoin_idx, -funneljoin_idy)
   } else if (mode %in% c("semi", "anti")) {
     ret <- x_i %>%
-      join_func(pairs, by = "..idx") %>%
-      dplyr::select(-..idx)
+      join_func(pairs, by = "funneljoin_idx") %>%
+      dplyr::select(-funneljoin_idx)
   }
 
   attr(ret, "after_join") <- 1
@@ -236,35 +236,35 @@ after_join <- function(x,
 
 #' @rdname after_join
 #' @export
-after_inner_join <- function(x, y, by_time, by_user, type, max_gap = NULL,  min_gap = NULL, gap_col = FALSE, suffix = c(".x", ".y")) {
+after_inner_join <- function(x, y, by_time, by_user, type, max_gap = NULL,  min_gap = NULL, gap_col = FALSE, suffix = c("_x", "_y")) {
   after_join(x, y, by_time, by_user,
              mode = "inner", type = type, max_gap = max_gap, min_gap = min_gap, gap_col = gap_col, suffix = suffix)
 }
 
 #' @rdname after_join
 #' @export
-after_left_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_gap = NULL, gap_col = FALSE, suffix = c(".x", ".y")) {
+after_left_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_gap = NULL, gap_col = FALSE, suffix = c("_x", "_y")) {
   after_join(x, y, by_time, by_user,
              mode = "left", type = type, max_gap = max_gap, min_gap = min_gap, gap_col = gap_col, suffix = suffix)
 }
 
 #' @rdname after_join
 #' @export
-after_right_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_gap = NULL, gap_col = FALSE, suffix = c(".x", ".y")) {
+after_right_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_gap = NULL, gap_col = FALSE, suffix = c("_x", "_y")) {
   after_join(x, y, by_time, by_user,
              mode = "right", type = type, max_gap = max_gap, min_gap = min_gap, gap_col = gap_col, suffix = suffix)
 }
 
 #' @rdname after_join
 #' @export
-after_full_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_gap = NULL, gap_col = FALSE, suffix = c(".x", ".y")) {
+after_full_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_gap = NULL, gap_col = FALSE, suffix = c("_x", "_y")) {
   after_join(x, y, by_time, by_user,
              mode = "full", type = type, max_gap = max_gap, min_gap = min_gap, gap_col = gap_col, suffix = suffix)
 }
 
 #' @rdname after_join
 #' @export
-after_anti_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_gap = NULL, gap_col = FALSE, suffix = c(".x", ".y")) {
+after_anti_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_gap = NULL, gap_col = FALSE, suffix = c("_x", "_y")) {
   after_join(x, y, by_time, by_user,
              mode = "anti", type = type, max_gap = max_gap, min_gap = min_gap, gap_col = gap_col, suffix = suffix)
 }
@@ -272,7 +272,7 @@ after_anti_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_ga
 #' @rdname after_join
 #' @export
 after_semi_join <- function(x, y, by_time, by_user, type, max_gap = NULL, min_gap = NULL,
-                            gap_col = FALSE, suffix = c(".x", ".y")) {
+                            gap_col = FALSE, suffix = c("_x", "_y")) {
   after_join(x, y, by_time, by_user,
              mode = "semi", type = type, max_gap = max_gap, min_gap = min_gap, gap_col = gap_col, suffix = suffix)
 }

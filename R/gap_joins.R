@@ -4,22 +4,22 @@ filter_in_gap <- function(pairs, min_gap = NULL, max_gap = NULL, time_xy, user_x
                                              "{ time_xy$x }",
                                              "{ time_xy$y }")::integer'))
     ret <- pairs %>%
-      dplyr::mutate(..time_diff = time_difference)
+      dplyr::mutate(funneljoin_time_diff = time_difference)
   } else {
     ret <- pairs %>%
-      dplyr::mutate(..time_diff = difftime(!!dplyr::sym(time_xy$y),
+      dplyr::mutate(funneljoin_time_diff = difftime(!!dplyr::sym(time_xy$y),
                                            !!dplyr::sym(time_xy$x),
                                            units = "secs"))
   }
 
   if (!is.null(max_gap)) {
     ret <- ret %>%
-      dplyr::filter(..time_diff < !!as_seconds(max_gap))
+      dplyr::filter(funneljoin_time_diff < !!as_seconds(max_gap))
   }
 
   if (!is.null(min_gap)) {
     ret <- ret %>%
-      dplyr::filter(..time_diff > !!as_seconds(min_gap))
+      dplyr::filter(funneljoin_time_diff > !!as_seconds(min_gap))
   }
 
   ret

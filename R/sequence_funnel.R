@@ -32,7 +32,7 @@
 #'
 funnel_start <- function(tbl, moment_type, moment, tstamp, user) {
 
-  if (!(moment_type %in% tbl[[dplyr::quo_name(dplyr::enquo(moment))]])) {
+  if (sdf_nrow(filter_at(tbl, vars(moment), all_vars(. == moment_type))) == 0) {
     stop(paste(moment_type, " is not in the moment column"))
   }
 
@@ -46,18 +46,18 @@ funnel_start <- function(tbl, moment_type, moment, tstamp, user) {
   )
 
   attr(tbl, "funnel_metadata") <- md
-  tbl <- tbl[tbl[[md$moment]] == moment_type, ]
+  tbl <- dplyr::filter_at(tbl, vars(moment), all_vars(. == moment_type))
 
   ret <- tbl %>%
-    dplyr::select(-!!dplyr::sym(md$moment)) %>%
-    dplyr::rename_at(dplyr::vars(-!!md$user), paste0, "_", moment_type)
+    dplyr::select(-dplyr::one_of(md$moment)) %>%
+    dplyr::rename_at(dplyr::vars(-!!md$user), paste0,
+                     "_", moment_type)
 
   if (!inherits(.data, "tbl_lazy")) {
-    ret <- ret %>%
-      dplyr::select_if(~ any(!is.na(.)))
+    ret <- ret %>% dplyr::select_if(~any(!is.na(.)))
   }
-  class(ret) <- c("tbl_funnel", class(ret))
 
+  class(ret) <- c("tbl_funnel", class(ret))
   ret
 }
 
@@ -109,7 +109,7 @@ funnel_step <- function(tbl, moment_type, type, name = moment_type, optional = F
 
   last_moment <- utils::tail(md$moment_sequence, 1)
 
-  filtered <- md$original_data[md$original_data[[md$moment]] == moment_type, ]
+  filtered <- filter_at(md$original_data, vars(md$moment), all_vars(. == moment_type))
 
   second_moment_data <- filtered %>%
     dplyr::select(-!!dplyr::sym(md$moment)) %>%
